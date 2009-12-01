@@ -1,6 +1,6 @@
 module RailsOnPg
   module Views
-    
+
     # Create new view
     # <tt>name</tt> - name of view 
     # Example:     
@@ -14,11 +14,12 @@ module RailsOnPg
     # See ViewDefinition class
     def create_view name, options={}, &block      
       view_def = ViewDefinition.new name, &block
-      
-      drop_views name, options[:dependent_views]      
+
+      drop_view name, options[:dependent_views]
       execute view_def.to_sql
     end
-    
+
+
     # Update view's select columns
     # <tt>name</tt> - name of existed view 
     # <tt>type</tt> - type of action(:add,:remove or :replace) 
@@ -34,9 +35,9 @@ module RailsOnPg
     def update_view name, type, columns, options={}
       view_structure = ActiveRecord::Base.connection.select_value("select definition from pg_views where viewname='#{name}'")
       raise ViewNotExistException("View #{name} does not exist in current db") unless view_structure
-      
+
       columns_str = columns.is_a?(Array) ? columns.join(',') : columns
-      
+
       select_pattern = /select (.*) from/i
       select_str = view_structure[select_pattern,1]
 
@@ -50,23 +51,25 @@ module RailsOnPg
           view_structure.gsub!(select_pattern, "SELECT #{columns_str} FROM")
       end
 
-      drop_views name, options[:dependent_views] 
+      drop_view name, options[:dependent_views]
       execute "CREATE VIEW #{name} AS #{view_structure};"
     end
-    
+
+
     # drop dependent views before if exists
     # Options
     # <tt>:dependent_views</tt> - if view has dependent views(views where current view used) then you need list them here    
-    def drop_views name, defs=nil
+    def drop_view name, defs=nil
       defs = defs.delete(:dependent_views) if defs.is_a?(Hash)
       defs.each do |dependent_view|
         execute "DROP VIEW IF EXISTS #{dependent_view}"
       end if defs
-      
+
       execute "DROP VIEW IF EXISTS #{name}"
 
     end
-    
+
+
     # recreate view without changes
     def recreate_view name
       view_structure = ActiveRecord::Base.connection.select_value("select definition from pg_views where viewname='#{name}'")
@@ -75,12 +78,13 @@ module RailsOnPg
         execute "CREATE VIEW #{name} AS #{view_structure};"
       end
     end
-    
+
+
     # ===========
     # = Classes =
     # ===========
-    class ViewNotExistException < Exception; end    
-    
+    class ViewNotExistException < Exception; end
+
     # View definition, see create_view dsl
     class ViewDefinition
       def initialize name, &block
@@ -88,18 +92,20 @@ module RailsOnPg
         @name = name
         instance_eval &block
       end
-      
+
       def select *columns
         @select = columns.join(',')
       end
+
       def from *tables
         @from = tables.join(',')
       end
+
       def join value
         @joins << value
       end
-      def conditions cond
 
+      def conditions cond
         @where = cond.collect{ |attrib, value| "#{attrib} = #{value}"}.join(" AND ") if cond.is_a?(Hash)
         @where = cond if cond.is_a?(String)
       end
@@ -109,7 +115,6 @@ module RailsOnPg
         "CREATE VIEW #{@name} AS SELECT #{@select} FROM #{@from} #{@joins.join(' ')} WHERE #{@where};"
       end
     end
-    
-        
+
   end
 end
